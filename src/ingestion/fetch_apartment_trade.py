@@ -64,4 +64,4 @@ if __name__ =="__main__":
     print(f"파일 실행위치:  {sys.path}")
     print(f"config위치 {config.__file__}")
     fetch_api_data()
-    show_data() 
+   # show_data() 
