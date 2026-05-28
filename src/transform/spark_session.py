@@ -7,8 +7,9 @@
 #serializer 
 from src.common import config
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import explode, col
+from pyspark.sql.functions import *
 import pyspark
+from datetime import datetime
 
 
 def create_spark_session():
@@ -62,8 +63,42 @@ def read_s3(spark):
         )
         
         # 데이터가 잘 읽혔는지 상위 5개 데이터와 스키마 출력
-        df_final.printSchema()
-        df_final.show(5,truncate = False)
+        # df_final.printSchema()
+        # df_final.show(5,truncate = False)
+        
+        # 2. 문자열 trim 처리 
+        string_cols = [ "apt_name","deal_amount","sgg_code","umd_name"]
+        for c in string_cols:
+            df_final = df_final.withColumn(c,trim(col(c)))
+            
+        # 3. 빈 문자열 null값 처리 
+        for c in string_cols:
+            df_final = df_final.withColumn(c, when(col(c)=="",None).otherwise(col(c)))
+        
+        #4. 거래금액 쉼표 제거 및 숫자형으로 변환
+        df_final =df_final.withColumn("deal_amount", regexp_replace(col("deal_amount"),",","").cast(int))
+        
+        #5. deal_date생성 년월일 yyyymmdd
+        df_final = df_final.withColumn("deal_date",
+                                       to_date(concat_ws("-",col("deal_year"),
+                                                            lpad(col("deal_month"),2,"0"),
+                                                            lpad(col("deal_day"),2,"0"))))
+        #6. parquet partition 컬럼 생성
+        df_final= (df_final 
+                   .withColumn("year",year(col("deal_date")))
+                   .withColumn("month",month(col("deal_date")))
+                   )
+        
+        # 7.중복제거 
+        df_final = df_final.dropDuplicates()
+        
+        #8. parquet으로 저장
+        (
+            df_final.write
+            .mode("overview") # append 로 많이 함 
+            .partitionBy("year","month")
+            .parquet(config.AWS_ACCESS.get("AWS_CURATED_BUCKET_NAME"))
+        )
         return df_final
     except Exception as e :
         print(f"읽기실패 ! {e}")
