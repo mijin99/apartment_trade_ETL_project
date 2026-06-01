@@ -5,11 +5,13 @@
 #parquet옵션
 #timezone 
 #serializer 
+import traceback
+
 from src.common import config
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 import pyspark
-from datetime import datetime
+from datetime import datetime as F
 
 
 def create_spark_session():
@@ -22,7 +24,7 @@ def create_spark_session():
         #s3 
         .config("spark.hadoop.fs.s3a.access.key", config.AWS_ACCESS.get("AWS_ACCESS_KEY_ID"))
         .config("spark.hadoop.fs.s3a.secret.key",config.AWS_ACCESS.get("AWS_SECRET_ACCESS_KEY"))
-        .config("spark.hadoop.fs.s3a.endpoint","s3.ap-southeast-2.amazonaws.com")
+        .config("spark.hadoop.fs.s3a.endpoint","s3.amazonaws.com")
         .config("spark.hadoop.fs.s3a.impl","org.apache.hadoop.fs.s3a.S3AFileSystem")
         #parquet 
         .config("spark.sql.parquet.compression.codec","snappy")
@@ -32,7 +34,9 @@ def create_spark_session():
 
 def read_s3(spark):
     # s3a://[버킷이름]/[폴더경로]/[파일명 또는 확장자]
-    s3_path = "s3a://my-data-project-raw/"
+    raw_path = config.AWS_S3.get("AWS_RAW_BUCKET_NAME")
+    s3_path = f"s3a://{raw_path}/"
+    #"s3a://my-data-project-raw/"
     print(f"[*] S3 데이터 읽기 시도 중... 경로: {s3_path}")
     try :
         #멀티라인 옵션 json 
@@ -51,9 +55,9 @@ def read_s3(spark):
         
         #최종 평탄회 flatten
         df_final = df_flattened.select (
-            col("dealYear").cast("int").alias("deal_year"),           #계약년
-            col("dealMonth").cast("int").alias("deal_month"),         #계약월
-            col("dealDay").cast("int").alias("deal_day"),             # 계약일
+            col("dealYear").cast("string").alias("deal_year"),           #계약년
+            col("dealMonth").cast("string").alias("deal_month"),         #계약월
+            col("dealDay").cast("string").alias("deal_day"),             # 계약일
             col("aptNm").alias("apt_name"),                           # 아파트명
             col("dealAmount").alias("deal_amount"),                   # 거래가 (만원)
             col("excluUseAr").cast("double").alias("exclusive_area"), #전용면적
@@ -61,6 +65,8 @@ def read_s3(spark):
             col("sggCd").alias("sgg_code"),                           #법정동 시군구코드
             col("umdNm").alias("umd_name")                            # 동이름
         )
+        #[디버깅]변환 확인 
+        df_final.select("deal_year", "deal_month").show(5)
         
         # 데이터가 잘 읽혔는지 상위 5개 데이터와 스키마 출력
         # df_final.printSchema()
@@ -72,17 +78,22 @@ def read_s3(spark):
             df_final = df_final.withColumn(c,trim(col(c)))
             
         # 3. 빈 문자열 null값 처리 
-        for c in string_cols:
-            df_final = df_final.withColumn(c, when(col(c)=="",None).otherwise(col(c)))
-        
+        # for c in string_cols:
+        #     df_final = df_final.withColumn(c, when(col(c)=="",None).otherwise(col(c)))
+        df_final = df_final.select([
+            when(col(c) == "", None).otherwise(col(c)).alias(c) if c in string_cols else col(c)
+            for c in df_final.columns
+        ])
         #4. 거래금액 쉼표 제거 및 숫자형으로 변환
-        df_final =df_final.withColumn("deal_amount", regexp_replace(col("deal_amount"),",","").cast(int))
+        df_final =df_final.withColumn("deal_amount", regexp_replace(col("deal_amount"),",","").cast("int"))
         
         #5. deal_date생성 년월일 yyyymmdd
         df_final = df_final.withColumn("deal_date",
                                        to_date(concat_ws("-",col("deal_year"),
                                                             lpad(col("deal_month"),2,"0"),
                                                             lpad(col("deal_day"),2,"0"))))
+        #삭제
+        df_final.select("deal_year", "deal_month", "deal_date").show(5)
         #6. parquet partition 컬럼 생성
         df_final= (df_final 
                    .withColumn("year",year(col("deal_date")))
@@ -92,16 +103,23 @@ def read_s3(spark):
         # 7.중복제거 
         df_final = df_final.dropDuplicates()
         
+        save_s3_name = config.AWS_S3.get("AWS_CURATED_BUCKET_NAME")
+        s3_save_path = f"s3a://{save_s3_name}/"
+        
+        print("save path:", repr(s3_save_path))
+        print("length:", len(s3_save_path))
         #8. parquet으로 저장
         (
             df_final.write
-            .mode("overview") # append 로 많이 함 
+            .mode("overwrite") # append 로 많이 함 
             .partitionBy("year","month")
-            .parquet(config.AWS_ACCESS.get("AWS_CURATED_BUCKET_NAME"))
+            .parquet(s3_save_path)
         )
+        
         return df_final
     except Exception as e :
         print(f"읽기실패 ! {e}")
+        traceback.print_exc()
         return None
     return 0
 
