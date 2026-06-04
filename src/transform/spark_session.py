@@ -6,7 +6,7 @@
 #timezone 
 #serializer 
 import traceback
-
+import os
 from src.common import config
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
@@ -19,14 +19,22 @@ def create_spark_session():
         SparkSession.builder 
         .appName("real-estate-etl")
         #config 
-        .config("spark.jars.packages","org.apache.hadoop:hadoop-aws:3.3.4" )
-        
+        #.config("spark.jars.packages","org.apache.hadoop:hadoop-aws:3.3.4" )
+        # bundle 라이브러리 쌍 
+        .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262")
         #s3 
         .config("spark.hadoop.fs.s3a.access.key", config.AWS_ACCESS.get("AWS_ACCESS_KEY_ID"))
         .config("spark.hadoop.fs.s3a.secret.key",config.AWS_ACCESS.get("AWS_SECRET_ACCESS_KEY"))
-        .config("spark.hadoop.fs.s3a.endpoint","s3.amazonaws.com")
         .config("spark.hadoop.fs.s3a.impl","org.apache.hadoop.fs.s3a.S3AFileSystem")
-        #parquet 
+       
+        #글로벌 엔드포인트 지정 
+        .config("spark.hadoop.fs.s3a.endpoint","s3.ap-southeast-2.amazonaws.com")
+        #교차 리전 접근 허용 sdk가 올바른 이전으로 요청 라우팅 
+        .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+        .config("spark.hadoop.fs.s3a.experimental.aws.s3.labels.cross-region", "true")
+        .config("spark.hadoop.fs.s3a.path.style.access", "false")
+        .config("spark.hadoop.io.native.lib.available", "false")
+         #parquet 
         .config("spark.sql.parquet.compression.codec","snappy")
         .getOrCreate()
     )
@@ -66,7 +74,7 @@ def read_s3(spark):
             col("umdNm").alias("umd_name")                            # 동이름
         )
         #[디버깅]변환 확인 
-        df_final.select("deal_year", "deal_month").show(5)
+        #df_final.select("deal_year", "deal_month").show(5)
         
         # 데이터가 잘 읽혔는지 상위 5개 데이터와 스키마 출력
         # df_final.printSchema()
@@ -93,7 +101,7 @@ def read_s3(spark):
                                                             lpad(col("deal_month"),2,"0"),
                                                             lpad(col("deal_day"),2,"0"))))
         #삭제
-        df_final.select("deal_year", "deal_month", "deal_date").show(5)
+        #df_final.select("deal_year", "deal_month", "deal_date").show(5)
         #6. parquet partition 컬럼 생성
         df_final= (df_final 
                    .withColumn("year",year(col("deal_date")))
@@ -106,14 +114,18 @@ def read_s3(spark):
         save_s3_name = config.AWS_S3.get("AWS_CURATED_BUCKET_NAME")
         s3_save_path = f"s3a://{save_s3_name}/"
         
-        print("save path:", repr(s3_save_path))
-        print("length:", len(s3_save_path))
+        # print("save path:", repr(s3_save_path))
+        # print("length:", len(s3_save_path))
+        #저장 테스트 
+        #df_final.limit(1).write.mode("append").partitionBy("year","month").parquet(s3_save_path)
         #8. parquet으로 저장
         (
             df_final.write
-            .mode("overwrite") # append 로 많이 함 
+            .mode("append") # append 로 많이 함 
             .partitionBy("year","month")
-            .parquet(s3_save_path)
+            .format("parquet")
+            .save(s3_save_path)
+           # .parquet(s3_save_path)
         )
         
         return df_final
@@ -144,9 +156,24 @@ if __name__ == "__main__":
     # df.show()
     
     
+    os.environ["HADOOP_HOME"] = r"C:\Users\j\OneDrive\Desktop\김미진\260517_ETL프로젝트\spark\hadoop"
+    os.environ["PATH"] += ";" + r"C:\Users\j\OneDrive\Desktop\김미진\260517_ETL프로젝트\spark\hadoop\bin"
+    print(os.environ.get("HADOOP_HOME"))
+    
+    #spark 생성 직후 찎어보기!!!!!!!!!!!!!!!!!!!!!!!1
+    #spark.range(1).write.mode("overwrite").csv("tmp_test")
+    #에러나면 하둡 로컬 파일시스템 문제 
+    #.config("spark.hadoop.io.native.lib.available", "false")
+    #spark.sparkContext._jsc.hadoopConfiguration().set(
+    # "io.native.lib.available",
+    # "false"
+    # )
     # 스파크 세션 
     spark_session = create_spark_session()
-    print(spark_session.sparkContext._jvm.org.apache.hadoop.util.VersionInfo.getVersion())
+    #print("Spark :", spark.version)
+    #spark_session.range(1).write.mode("overwrite").parquet("tmp_parquet")
+    #하둡 버전 찍기
+    #print(spark_session.sparkContext._jvm.org.apache.hadoop.util.VersionInfo.getVersion())
     # 세션을 인자로 넘겨서 실행
     read_s3(spark_session)
     
