@@ -63,13 +63,13 @@ def read_s3(spark):
         
         #최종 평탄회 flatten
         df_final = df_flattened.select (
-            col("dealYear").cast("string").alias("deal_year"),           #계약년
-            col("dealMonth").cast("string").alias("deal_month"),         #계약월
-            col("dealDay").cast("string").alias("deal_day"),             # 계약일
+            col("dealYear").cast("int").alias("deal_year"),           #계약년
+            col("dealMonth").cast("int").alias("deal_month"),         #계약월
+            col("dealDay").cast("int").alias("deal_day"),             # 계약일
             col("aptNm").alias("apt_name"),                           # 아파트명
             col("dealAmount").alias("deal_amount"),                   # 거래가 (만원)
             col("excluUseAr").cast("double").alias("exclusive_area"), #전용면적
-            col("floor").cast("int").alias("floor"),                  # 층
+            col("floor").cast("int").alias("floor_no"),                  # 층
             col("sggCd").alias("sgg_code"),                           #법정동 시군구코드
             col("umdNm").alias("umd_name")                            # 동이름
         )
@@ -96,10 +96,18 @@ def read_s3(spark):
         df_final =df_final.withColumn("deal_amount", regexp_replace(col("deal_amount"),",","").cast("int"))
         
         #5. deal_date생성 년월일 yyyymmdd
-        df_final = df_final.withColumn("deal_date",
-                                       to_date(concat_ws("-",col("deal_year"),
-                                                            lpad(col("deal_month"),2,"0"),
-                                                            lpad(col("deal_day"),2,"0"))))
+        df_final = ( df_final
+                        .withColumn("deal_date",
+                                    make_date(
+                                        col("deal_year"),
+                                        col("deal_month"),
+                                        col("deal_day")
+                                    )
+                        )
+                        .withColumn("year",year(col("deal_date")))
+                        .withColumn("month",year(col("deal_date")))
+        )
+        
         #삭제
         #df_final.select("deal_year", "deal_month", "deal_date").show(5)
         #6. parquet partition 컬럼 생성
@@ -110,6 +118,11 @@ def read_s3(spark):
         
         # 7.중복제거 
         df_final = df_final.dropDuplicates()
+        df_final = df_final.drop(
+                "deal_year",
+                "deal_month",
+                "deal_day"
+        )
         
         save_s3_name = config.AWS_S3.get("AWS_CURATED_BUCKET_NAME")
         s3_save_path = f"s3a://{save_s3_name}/"
@@ -119,6 +132,9 @@ def read_s3(spark):
         #저장 테스트 
         #df_final.limit(1).write.mode("append").partitionBy("year","month").parquet(s3_save_path)
         #8. parquet으로 저장
+        
+        #[최종스키마 구조 확인] - deal year,month 리팩토링때 제거!!!!!!1
+        df_final.printSchema()
         (
             df_final.write
             .mode("append") # append 로 많이 함 
