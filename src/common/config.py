@@ -14,6 +14,7 @@ _aws_raw = _load_yaml("aws_config.yaml")
 
 #계층대로 할당
 API_SETTINGS = _api_raw.get("api",{})
+API_REGION = _api_raw.get("regions",[])
 AWS_ACCESS = _aws_raw.get("access",{})
 AWS_S3 =_aws_raw.get("s3",{})
 
@@ -26,4 +27,5 @@ if __name__ == "__main__":
     print(f"2. api_config.yaml에서 읽은 원본: {_api_raw}")
     print(f"3. API_SETTINGS 결과: {API_SETTINGS}")
     print(f"4. API_KEY 가져오기 테스트: {API_SETTINGS.get('API_KEY')}")
+    print(f"4. API_KEY 가져오기 테스트: {API_REGION}")
     print("--- 테스트 끝 ---\n")
