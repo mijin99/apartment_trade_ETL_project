@@ -45,7 +45,7 @@ def fetch_apt_trade(lawd_cd,deal_ymd):
             num_of_rows = int(body["numOfRows"])
             total_pages =math.ceil( total_count/num_of_rows)
             print (
-                f"{lawd_cd}"
+                f"{lawd_cd}_"
                 f"{deal_ymd}"
                 f"총{total_count}건"
                 f"{total_pages}페이지"
@@ -53,9 +53,9 @@ def fetch_apt_trade(lawd_cd,deal_ymd):
         items = body.get("items",{}).get("item",[])
         if not items :
             break
-        if isinstance(items,dict):
-            items=[items]
-        all_items.extend(items)
+        if isinstance(items,dict): #dict 형이 맞는지 확인 (단건은list ,다건은 dict)
+            items=[items] #강제 리스트로 바꿈 {} -> [{}]
+        all_items.extend(items) #리스트에 추가 [{}{}], append는 [{}[{}]]
         if page_no >= total_pages:
             break
         page_no +=1
@@ -102,8 +102,9 @@ def load_region_config():
 
 def get_previous_month():
     deal_ymd = (
-        datetime.today() - relativedelta(months=1) #한달 전 날짜 계산 
-    ).strftime
+        datetime.now() - relativedelta(months=1) #한달 전 날짜 계산 
+    ).strftime('%Y%m')
+    print(deal_ymd)
     return deal_ymd
 
 #ochestration 함수 
@@ -120,7 +121,7 @@ def collect_trade_data():
         )
         save_raw_to_s3(
             data_dict = data_dict,
-            region = region,
+            lawd_cd = region,
             deal_ymd = deal_ymd
         )
     
@@ -148,6 +149,8 @@ def fetch_api_data():
         print ("데이터 수신 성공")
         #xml- > json변환 ( 추후 parquet변환이나 s3저장을 생각했을 때)
         data_dict = xmltodict.parse(response.text)
+        #총건수 찍어보기
+        print( data_dict["response"]["body"]["totalCount"])
         convjson = json.dumps(data_dict, indent=4,ensure_ascii=False)
         
         #s3에 저장 , 폴더 구조를 이용해야되나? 일별 파티션, 증분적재 구현필
