@@ -12,6 +12,7 @@ import boto3
 import sys
 from dateutil.relativedelta import relativedelta 
 import math
+import time
 
 #api호출 
 def fetch_apt_trade(lawd_cd,deal_ymd):
@@ -25,19 +26,33 @@ def fetch_apt_trade(lawd_cd,deal_ymd):
     page_no = 1
     total_pages =None
     while True: 
-        params ={
-            "LAWD_CD" : lawd_cd,
-            "DEAL_YMD": deal_ymd,
-            "serviceKey":api_key,
-            "pageNo": page_no,
-            "numOfRows" :1000,
-        }
-        print(f"api요청시작~:{url}")
-        response = requests.get(url,params =params)
-        print(response.status_code )
-        if response.status_code !=200:
-            raise Exception(f"api 호출 실패 : {response.status_code}")
-        print("api요청 성공")
+        #재시도 로직 
+        for retry in range(5):
+            params ={
+                "LAWD_CD" : lawd_cd,
+                "DEAL_YMD": deal_ymd,
+                "serviceKey":api_key,
+                "pageNo": page_no,
+                "numOfRows" :1000,
+            }
+            print(f"api요청시작~:{url}")
+            try :
+                
+                response = requests.get(url,params =params)
+                print(response.url)
+                print(response.status_code)
+                print(response.text[:500])
+                if response.status_code ==200 :
+                    print("api요청 성공")
+                    break
+                print(f"api호출 실패. 재시도 {retry+1}")
+                time.sleep(5)
+            except requests.exceptions.RequestException as e :
+                print(f"네트워크 오류 : {e}")
+                time.sleep(5)
+        else :
+            raise Exception(f"api 호출 실패 : (lawd_cd={lawd_cd}, deal_ymd={deal_ymd}, page={page_no})")
+            
         data_dict = xmltodict.parse(response.text)
         body = data_dict["response"]["body"]
         if total_pages is None : 
@@ -112,18 +127,24 @@ def collect_trade_data():
     #수행 법정동 코드 설정 
     regions = load_region_config()
     # 수행 날짜 설정
-    deal_ymd = get_previous_month()
+    #deal_ymd = get_previous_month()
+    deal_ymd =202501
     #법정동코드 반복
-    for region in regions : 
-        data_dict = fetch_apt_trade(
-            lawd_cd = region,
-            deal_ymd = deal_ymd
-        )
-        save_raw_to_s3(
-            data_dict = data_dict,
-            lawd_cd = region,
-            deal_ymd = deal_ymd
-        )
+    for year in range(2025,2027):
+        for month in range(1,13):
+            deal_ymd=f"{year}{month:02d}"
+            if year ==2026 and month >4 :
+                break
+            for region in regions : 
+                data_dict = fetch_apt_trade(
+                    lawd_cd = region,
+                    deal_ymd = deal_ymd
+                )
+                save_raw_to_s3(
+                    data_dict = data_dict,
+                    lawd_cd = region,
+                    deal_ymd = deal_ymd
+                )
     
 #테스트용 실행 
 def fetch_api_data():
