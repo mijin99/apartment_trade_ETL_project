@@ -38,12 +38,17 @@ def create_spark_session():
         .config("spark.sql.parquet.compression.codec","snappy")
         .getOrCreate()
     )
+    spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
     return spark
 
-def read_s3(spark):
+def read_s3(spark,deal_ymd):
     # s3a://[버킷이름]/[폴더경로]/[파일명 또는 확장자]
     raw_path = config.AWS_S3.get("AWS_RAW_BUCKET_NAME")
-    s3_path = f"s3a://{raw_path}/"
+    s3_path = (
+        f"s3a://{raw_path}/"
+        f"apartment_trade/"
+        f"deal_ymd={deal_ymd}/"
+    )
     #"s3a://my-data-project-raw/"
     print(f"[*] S3 데이터 읽기 시도 중... 경로: {s3_path}")
     try :
@@ -105,7 +110,7 @@ def read_s3(spark):
                                     )
                         )
                         .withColumn("year",year(col("deal_date")))
-                        .withColumn("month",year(col("deal_date")))
+                        .withColumn("month",month(col("deal_date")))
         )
         
         #삭제
@@ -137,7 +142,7 @@ def read_s3(spark):
         df_final.printSchema()
         (
             df_final.write
-            .mode("append") # append 로 많이 함 
+            .mode("overwrite") # append 로 많이 함 
             .partitionBy("year","month")
             .format("parquet")
             .save(s3_save_path)
@@ -191,7 +196,7 @@ if __name__ == "__main__":
     #하둡 버전 찍기
     #print(spark_session.sparkContext._jvm.org.apache.hadoop.util.VersionInfo.getVersion())
     # 세션을 인자로 넘겨서 실행
-    read_s3(spark_session)
+    read_s3(spark_session,"202605")
     
     # 작업 완료 후 세션 종료 (자원 반납)
     spark_session.stop()

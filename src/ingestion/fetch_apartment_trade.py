@@ -127,24 +127,35 @@ def collect_trade_data():
     #수행 법정동 코드 설정 
     regions = load_region_config()
     # 수행 날짜 설정
-    #deal_ymd = get_previous_month()
-    deal_ymd =202501
+    deal_ymd = get_previous_month()
     #법정동코드 반복
-    for year in range(2025,2027):
-        for month in range(1,13):
-            deal_ymd=f"{year}{month:02d}"
-            if year ==2026 and month >4 :
-                break
-            for region in regions : 
-                data_dict = fetch_apt_trade(
-                    lawd_cd = region,
-                    deal_ymd = deal_ymd
-                )
-                save_raw_to_s3(
-                    data_dict = data_dict,
-                    lawd_cd = region,
-                    deal_ymd = deal_ymd
-                )
+    for region in regions : 
+        data_dict = fetch_apt_trade(
+            lawd_cd = region,
+            deal_ymd = deal_ymd
+        )
+        save_raw_to_s3(
+            data_dict = data_dict,
+            lawd_cd = region,
+            deal_ymd = deal_ymd
+        )
+    #법정동코드 반복(테스트코드)
+    # deal_ymd =202501
+    # for year in range(2025,2027):
+    #     for month in range(1,13):
+    #         deal_ymd=f"{year}{month:02d}"
+    #         if year ==2026 and month >4 :
+    #             break
+    #         for region in regions : 
+    #             data_dict = fetch_apt_trade(
+    #                 lawd_cd = region,
+    #                 deal_ymd = deal_ymd
+    #             )
+    #             save_raw_to_s3(
+    #                 data_dict = data_dict,
+    #                 lawd_cd = region,
+    #                 deal_ymd = deal_ymd
+    #             )
     
 #테스트용 실행 
 def fetch_api_data():
