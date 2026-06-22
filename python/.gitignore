@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.__pycache__
+.env
+.vscode/
+*.yaml
+logs/
+data/
+.ipynb_checkpoints/
+.DS_Store/
+airflow/airflow-project/logs/
