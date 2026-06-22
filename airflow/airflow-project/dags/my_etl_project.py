@@ -10,7 +10,7 @@ with DAG(
     schedule="@daily",
     catchup=False,
 ) as dag:
-
+ 
     etl_task = PythonOperator(
         task_id="run_pipeline",
         python_callable=run_pipeline,
