@@ -9,3 +9,5 @@ data/
 .ipynb_checkpoints/
 .DS_Store/
 airflow/airflow-project/logs/
+airflow/airflow-project/.venv/
+*.pyc
