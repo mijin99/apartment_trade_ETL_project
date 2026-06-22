@@ -97,14 +97,20 @@ def save_raw_to_s3(data_dict :str, lawd_cd :str, deal_ymd :str):
     )
     bucket_name =config.AWS_S3.get("AWS_RAW_BUCKET_NAME")
     try:
-        s3_client = boto3.client('s3')
-        s3_client.put_object(
+        s3_client = boto3.client('s3', 
+                                 aws_access_key_id=config.AWS_ACCESS.get("AWS_ACCESS_KEY_ID"),
+                                aws_secret_access_key=config.AWS_ACCESS.get("AWS_SECRET_ACCESS_KEY"),
+                                region_name=config.AWS_S3.get("AWS_DEFAULT_REGION"))
+        print(bucket_name)
+        print(s3_key)
+        response = s3_client.put_object(
             Bucket =bucket_name,
             Key =s3_key,
             Body = convjson.encode('utf-8'),
             ContentType='application/json'
         )
         print(f"[완료] s3버킷 '{bucket_name}'에 '{s3_key}' 파일로 저장완료")
+        print(f"응답{response} ")
     except Exception as e:
         print (f"[오류]s3업로드중 오류 {e}")
     return 0
@@ -123,11 +129,12 @@ def get_previous_month():
     return deal_ymd
 
 #ochestration 함수 
-def collect_trade_data():
+def collect_trade_data(deal_ymd):
     #수행 법정동 코드 설정 
     regions = load_region_config()
     # 수행 날짜 설정
-    deal_ymd = get_previous_month()
+    #deal_ymd = get_previous_month()
+    deal_ymd = deal_ymd 
     #법정동코드 반복
     for region in regions : 
         data_dict = fetch_apt_trade(

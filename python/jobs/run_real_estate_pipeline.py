@@ -17,7 +17,7 @@ from src.transform.build_curated_dataset import build_curated_dataset
 def run_pipeline(deal_ymd):
 
     # 1. API 호출 및 저장 
-    collect_trade_data()
+    collect_trade_data(deal_ymd)
 
 
     # 2. spark 생성 및 저장 
@@ -29,4 +29,4 @@ def run_pipeline(deal_ymd):
     spark.stop()
 
 if __name__ == "__main__":
-    run_pipeline("202506")
+    run_pipeline("202505")

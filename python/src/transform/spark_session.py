@@ -17,6 +17,8 @@ from datetime import datetime as F
 def create_spark_session():
     spark = (
         SparkSession.builder 
+        .config("spark.local.dir", "C:/spark-temp")
+        .config("spark.hadoop.tmp.dir", "C:/spark-temp")
         .appName("real-estate-etl")
         #config 
         #.config("spark.jars.packages","org.apache.hadoop:hadoop-aws:3.3.4" )
