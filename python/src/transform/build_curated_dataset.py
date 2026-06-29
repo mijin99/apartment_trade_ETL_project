@@ -112,7 +112,7 @@ def build_curated_dataset(spark,deal_ymd):
         #8. parquet으로 저장
         
         #[최종스키마 구조 확인] - deal year,month 리팩토링때 제거!!!!!!1
-        df_final.write.mode("overwrite").parquet("./test_parquet") #테스트 로컬저장 확인
+        #df_final.write.mode("overwrite").parquet("./test_parquet") #테스트 로컬저장 확인
         df_final.printSchema()
         (
             df_final.write

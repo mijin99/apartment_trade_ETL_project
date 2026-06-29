@@ -11,3 +11,5 @@ data/
 airflow/airflow-project/logs/
 airflow/airflow-project/.venv/
 *.pyc
+spark/
+test_parquet/
